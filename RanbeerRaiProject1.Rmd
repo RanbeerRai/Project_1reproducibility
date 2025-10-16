@@ -24,7 +24,7 @@ The topic of this project is global life expectancy and its relationship with fa
 
 ```{r covid_19_image, echo=FALSE, out.width="70%", fig.align='center', fig.cap="Covid-19 is one of the biggest threats to life expectancy rates in present times. Image Source: Intelsius, link:https://intelsius.com/wp-content/uploads/2020/12/COVID-19-Globe.jpg"}
 #learn't how to add images in rmd files through Google and Gemini and it told me about knitter::include_graphics as well as the options out.width and fig.cap which change the size of the image and allow me to add a caption
-knitr::include_graphics("/Users/ranbeerrai/Desktop/SDS313/COVID-19-Globe.jpg")
+knitr::include_graphics("COVID-19-Globe.jpg")
 
 ```
 
