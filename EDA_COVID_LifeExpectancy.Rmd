@@ -1,0 +1,163 @@
+---
+title: "An Analysis of Global Life Expectancy Trends"
+author: "Ranbeer Rai"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+options(scipen = 999) # Prevents scientific notation
+
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(janitor)
+```
+**1. Introduction:**
+
+The topic of this project is global life expectancy and its relationship with factors like sex, geographical region, and major global health events. Life expectancy is a key indicator of a population's overall health, reflecting the impact of healthcare, socio-economic conditions, and global crises. This analysis uses data from the World Health Organization to explore these trends.
+
+```{r covid_19_image, echo=FALSE, out.width="70%", fig.align='center', fig.cap="Covid-19 is one of the biggest threats to life expectancy rates in present times. Image Source: Intelsius, link:https://intelsius.com/wp-content/uploads/2020/12/COVID-19-Globe.jpg"}
+#learn't how to add images in rmd files through Google and Gemini and it told me about knitter::include_graphics as well as the options out.width and fig.cap which change the size of the image and allow me to add a caption
+knitr::include_graphics("/Users/ranbeerrai/Desktop/SDS313/COVID-19-Globe.jpg")
+
+```
+ 
+This analysis aims to uncover patterns in global health data to answer the following research questions:
+ 
+ 1. Do women usually live longer than men in most countries and regions?
+ 
+ 2. How has life expectancy changed across different continents in the past few years?
+ 
+ 
+The data for this report was sourced from the WHO Global Health Observatory data repository (https://www.who.int/data/gho) and the WHO Coronavirus (COVID-19) Dashboard (https://covid19.who.int/). For further reading, the Wikipedia article on Life Expectancy (https://en.wikipedia.org/wiki/Life_expectancy) provides excellent context.
+
+**2. Data Preparation:**
+
+1. Data Acquisition: The analysis uses two datasets provided by the World Health Organization (WHO). The primary dataset contains global life expectancy figures and was sourced from the WHO's data repository. The second dataset contains cumulative COVID-19 case and death counts and was sourced from the WHO's public dashboard.
+2. Data Processing: The two datasets required significant processing before they could be used for analysis.
+
+Life Expectancy Data:
+
+  -The raw data was filtered to include only observations for "Life expectancy at birth" and for years between 2000 and 2021.
+  
+  -Columns were selected and renamed for clarity (e.g., GEO_NAME_SHORT became country).
+  
+  -Observations where the sex was listed as "Total" were removed to allow for a direct comparison between males and females.
+  
+  
+COVID-19 Data:
+
+  -The dataset was cleaned to select only country names, WHO regions, and cumulative deaths. Columns were renamed for consistency.
+  
+  
+Merging:
+
+  -The cleaned life expectancy and COVID-19 datasets were merged into a single tibble. This allows for direct comparison between a country's life expectancy and the impact of the pandemic.
+  
+  
+Variable Creation:
+
+  -Two new variables were created: decade, which categorizes the year, and covid_impact, a categorical variable that classifies countries into "High" or "Low" impact based on their cumulative COVID-19 deaths.
+  
+3. Challenges Faced: The primary challenge was merging the two datasets. Many country names were inconsistent between the two files (e.g., "United States of America" vs. "United States"). This required manual cleaning and recoding of country names to ensure the data could be joined accurately. Furthermore, the COVID-19 data is a cumulative snapshot, which limits the analysis to correlations rather than year-over-year causation.
+
+```{r echo = FALSE}
+# Load the datasets
+setwd("/Users/ranbeerrai/Desktop/SDS313")
+life_exp_raw <- read_csv("90E2E48_ALL_LATEST (1).csv")
+covid_raw <- read_csv("WHO-COVID-19-global-table-data.csv")
+
+# Clean Life Expectancy Data
+# CORRECTED: The indicator name includes parentheses "(at birth)"
+filtered_le <- filter(life_exp_raw, IND_NAME == "Life expectancy (at birth)", DIM_TIME >= 2000)
+selected_le <- select(filtered_le, GEO_NAME_SHORT, DIM_TIME, DIM_SEX, AMOUNT_N)
+renamed_le <- rename(selected_le,
+    country = GEO_NAME_SHORT,
+    year = DIM_TIME,
+    sex = DIM_SEX,
+    life_expectancy = AMOUNT_N
+)
+life_exp_clean <- filter(renamed_le, sex %in% c("FEMALE", "MALE"))
+
+# Clean COVID-19 Data
+selected_covid <- select(covid_raw, Name, `WHO Region`, `Deaths - cumulative total`)
+renamed_covid <- rename(selected_covid,
+    country = Name,
+    who_region = `WHO Region`,
+    covid_deaths = `Deaths - cumulative total`
+)
+# Manually fix inconsistent country names for merging
+covid_clean <- mutate(renamed_covid, country = recode(country,
+    "Bolivia (Plurinational State of)" = "Bolivia",
+    "United States of America" = "United States",
+    "United Kingdom" = "The United Kingdom",
+    "Viet Nam" = "Vietnam",
+    "Iran (Islamic Republic of)" = "Iran",
+    "Venezuela (Bolivarian Republic of)" = "Venezuela",
+    "Russian Federation" = "Russia",
+    "Republic of Korea" = "South Korea",
+    "The United Kingdom" = "United Kingdom"
+))
+
+# Merge the two datasets
+merged_data <- left_join(life_exp_clean, covid_clean, by = "country")
+
+# Create new variables and filter
+mutated_data <- mutate(merged_data,
+    decade = case_when(
+      year < 2010 ~ "2000-2009",
+      TRUE ~ "2010-2021"
+    ),
+    covid_impact = ifelse(covid_deaths > 100000, "High", "Low")
+)
+final_data <- filter(mutated_data, !is.na(who_region)) # Remove rows that didn't merge
+```
+
+**3.Variable Descriptions:**
+
+```{r variable_descriptions, echo=FALSE, message=FALSE}
+library(tibble)
+
+# Create a tibble describing the variables of interest
+variable_info <- tribble(
+  ~Variable, ~Type, ~Description,
+  "country", "Categorical", "Country or territory name included in both datasets.",
+  "year", "Numeric", "The reference year of the life expectancy observation.",
+  "sex", "Categorical", "Indicates whether the life expectancy value refers to males or females.",
+  "life_expectancy", "Numeric", "Life expectancy at birth (in years) for the given country and sex.",
+  "who_region", "Categorical", "The WHO region classification that each country belongs to.",
+  "covid_deaths", "Numeric", "Total number of reported COVID-19 deaths for each country.",
+  "decade", "Categorical", "A grouped variable that categorizes the observation year by decade.",
+  "covid_impact", "Numeric", "A new variable measuring the estimated impact of COVID-19 on life expectancy."
+)
+
+# Display the table in a nice format
+knitr::kable(variable_info, caption = "Table 1: Variables of Interest in the Final Dataset")
+```
+
+
+**Univariate analysis**
+
+```{r echo=FALSE}
+# Histogram for life expectancy
+ggplot(final_data, aes(x = life_expectancy)) +
+  geom_histogram(binwidth = 2, fill = "skyblue", color = "black") +
+  labs(
+    title = "Distribution of Life Expectancy (Years)",
+    x = "Life Expectancy (Years)",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+# Descriptive statistics for life expectancy
+
+```
+blah blah blah, left skewed, report median with `r round(median(final_data$life_expectancy)3)` and `r round(IQR(final_data$life_expectancy)3)`
+
+
+```
